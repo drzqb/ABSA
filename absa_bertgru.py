@@ -74,7 +74,9 @@ class BERT(Layer):
         self.bert = TFBertModel.from_pretrained("bert-base-uncased")
 
     def call(self, inputs, **kwargs):
-        return self.bert(inputs)[0]
+        return self.bert(input_ids=inputs,
+                         token_type_ids=tf.zeros_like(inputs),
+                         attention_mask=tf.cast(tf.greater(inputs, 0), tf.int32))[0]
 
 
 class SplitSequence(Layer):
