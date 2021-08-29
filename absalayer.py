@@ -48,6 +48,127 @@ class CRF(Layer):
         return viterbi_sequence
 
 
+class CRFuse(Layer):
+    def __init__(self, label_dim, **kwargs):
+        super(CRFuse, self).__init__(**kwargs)
+        self.label_dim = label_dim
+
+        self.dense_ner = Dense(label_dim,
+                               kernel_initializer=TruncatedNormal(stddev=0.02),
+                               dtype=tf.float32,
+                               name='ner')
+
+        self.cls_embed = self.add_weight(name="cls_embed",
+                                         shape=[2, 768],
+                                         dtype=tf.float32,
+                                         trainable=True)
+
+        self.transitions = self.add_weight(name='transitions',
+                                           shape=[label_dim, label_dim],
+                                           initializer='glorot_uniform',
+                                           trainable=True)
+
+    def get_config(self):
+        config = super(CRFuse, self).get_config().copy()
+        config.update({
+            'label_dim': self.label_dim,
+        })
+
+        return config
+
+    def call(self, inputs, **kwargs):
+        x, label, seqlen = inputs
+
+        x1 = x + self.cls_embed[0]
+        x2 = x + self.cls_embed[1]
+        x_r = tf.concat([x1, x2], axis=0)
+        output_r = self.dense_ner(x_r)
+        # output1 = output + self.cls_embed[0]
+        # output2 = output + self.cls_embed[1]
+        # output_r = tf.concat([output1, output2], axis=0)
+
+        label1 = tf.where(tf.greater(label, 0), tf.ones_like(label), tf.zeros_like(label))
+        label2 = tf.where(tf.greater(label, 0), label + 1, tf.zeros_like(label))
+        label_r = tf.concat([label1, label2], axis=0)
+
+        seqlen_r = tf.tile(seqlen, [2])
+
+        log_likelihood, _ = tfa.text.crf_log_likelihood(output_r, label_r, seqlen_r, self.transitions)
+        loss = tf.reduce_mean(-log_likelihood)
+
+        self.add_loss(loss)
+
+        viterbi_sequence_r, _ = tfa.text.crf_decode(output_r, self.transitions, seqlen_r)
+
+        viterbi_sequence1, viterbi_sequence2 = tf.split(viterbi_sequence_r, 2)
+
+        viterbi_sequence = tf.where(tf.logical_or(tf.equal(viterbi_sequence1, 0), tf.equal(viterbi_sequence2, 0)),
+                                    tf.zeros_like(viterbi_sequence1),
+                                    viterbi_sequence2 - 1)
+        accuracy = tf.reduce_sum(tf.cast(tf.equal(viterbi_sequence, label), tf.float32) * tf.cast(
+            tf.sequence_mask(seqlen, tf.reduce_max(seqlen)), tf.float32))
+        accuracy = accuracy / tf.reduce_sum(tf.cast(seqlen, tf.float32))
+
+        self.add_metric(accuracy, name="crf_acc")
+
+        return viterbi_sequence
+
+
+class CRFMRC(Layer):
+    def __init__(self, label_dim, **kwargs):
+        super(CRFMRC, self).__init__(**kwargs)
+        self.label_dim = label_dim
+
+        self.dense_ner = Dense(label_dim,
+                               kernel_initializer=TruncatedNormal(stddev=0.02),
+                               dtype=tf.float32,
+                               name='ner')
+
+        self.transitions = self.add_weight(name='transitions',
+                                           shape=[label_dim, label_dim],
+                                           initializer='glorot_uniform',
+                                           trainable=True)
+
+    def get_config(self):
+        config = super(CRFMRC, self).get_config().copy()
+        config.update({
+            'label_dim': self.label_dim,
+        })
+
+        return config
+
+    def call(self, inputs, **kwargs):
+        x, label, seqlen = inputs
+
+        output_r = self.dense_ner(x)
+
+        label1 = tf.where(tf.greater(label, 0), tf.ones_like(label), label)
+        label2 = tf.where(tf.greater(label, 0), label + 1, label)
+        label_r = tf.concat([label1, label2], axis=0)
+
+        seqlen_r = tf.tile(seqlen, [2])
+
+        log_likelihood, _ = tfa.text.crf_log_likelihood(output_r, label_r, seqlen_r, self.transitions)
+        loss = tf.reduce_mean(-log_likelihood)
+
+        self.add_loss(loss)
+
+        viterbi_sequence_r, _ = tfa.text.crf_decode(output_r, self.transitions, seqlen_r)
+
+        viterbi_sequence1, viterbi_sequence2 = tf.split(viterbi_sequence_r, 2)
+
+        viterbi_sequence = tf.where(tf.logical_or(tf.equal(viterbi_sequence1, 0), tf.equal(viterbi_sequence2, 0)),
+                                    tf.zeros_like(viterbi_sequence1),
+                                    viterbi_sequence2 - 1)
+        accuracy = tf.reduce_sum(tf.cast(tf.equal(viterbi_sequence, label), tf.float32) * tf.cast(
+            tf.sequence_mask(seqlen, tf.reduce_max(seqlen)), tf.float32))
+        accuracy = accuracy / tf.reduce_sum(tf.cast(seqlen, tf.float32))
+
+        self.add_metric(accuracy, name="crf_acc")
+
+        return viterbi_sequence
+
+
 class CRFs(Layer):
     def __init__(self, label_dim, **kwargs):
         super(CRFs, self).__init__(**kwargs)
