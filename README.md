@@ -21,6 +21,6 @@
         Exploiting BERT for End-to-End Aspect-based Sentiment Analysis
         A Unified Model for Opinion Target Extraction and Target Sentiment Predictio
         
-# mrc: 基于阅读理解任务的方法，此方法来源于嵌套命名实体识别最新成果
+# mrc: 借鉴阅读理解任务的方法，此方法来源于嵌套命名实体识别最新成果
     “find the term" + sentence --> 标注任务为寻找实体项目
     "tag the sentiment" + sentence --> 标注任务为标记情感
