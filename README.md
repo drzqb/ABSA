@@ -1,4 +1,4 @@
-# 细粒度情感分析
+# 细粒度情感分析 Aspect-Based Sentiment Analysis
 
 # pipline
 
